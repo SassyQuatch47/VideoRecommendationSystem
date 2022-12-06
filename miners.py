@@ -178,12 +178,3 @@ class AssociationRuleMiner():
         """
         words
         """
-
-ass_miner = AssociationRuleMiner(support_threshold=0.2, confidence_threshold=0.5)
-test_data = pd.DataFrame(data = [
-            [  True,    True,     True,    False ],
-            [  False,   False,    True,    False ],
-            [  True,    False,    True,    True  ],
-            [  True,    False,    False,   False ],
-            [  True,    False,    False,   True  ]
-], columns= [  'I1',    'I2',     'I3',    'I4'  ])
