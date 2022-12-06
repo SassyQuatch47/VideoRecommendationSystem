@@ -187,5 +187,3 @@ test_data = pd.DataFrame(data = [
             [  True,    False,    False,   False ],
             [  True,    False,    False,   True  ]
 ], columns= [  'I1',    'I2',     'I3',    'I4'  ])
-
-ass_miner.apriori(transaction_table=test_data)
