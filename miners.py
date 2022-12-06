@@ -28,13 +28,97 @@ class AssociationRuleMiner():
     def __reset_metadata(self) -> None:
         self.__state_log = []
 
+    def __mine_from_freq_itemset(self, frequent_itemset:dict, frequency_tables:list = None, transaction_table:pd.DataFrame=None) -> dict:
+        
+        assoc_rules = dict()
+
+        if frequency_tables is None:
+            if transaction_table is None:
+                raise ValueError('for mining associations from frequent itemsets, neither frequency_tables nor a transaction_table are provided.')
+            frequency_tables = [[]]
+            # TODO: generate frequencies from transaction_table
+        
+        for item in frequent_itemset:
+        
+            item_support_count = frequent_itemset[item]
+            print('item:', item, ":sup:", item_support_count)
+
+            # hypothesis_size = 1
+            # ------------------------------------------------------------------------------
+            hypothesis_set = list(combinations(item, r=1))
+            print(f'hypothesis set[{1}]:', hypothesis_set)
+                
+            for hypothesis in hypothesis_set:
+                hypothesis_support_count = frequency_tables[0][hypothesis[0]]
+                confidence = item_support_count / hypothesis_support_count
+                print('hypothesis:', hypothesis, ":sup:", hypothesis_support_count, ":conf:", confidence)
+                
+                if confidence > self.__conf:
+                    inference = [ element for element in item if element not in hypothesis ]
+                    assoc_rules[hypothesis] = inference
+                    print(f'{hypothesis} => {inference}')
+            # ------------------------------------------------------------------------------
+
+            # hypothesis_size > 1
+            # ------------------------------------------------------------------------------
+            for hypothesis_size in range(2, len(item)):
+                hypothesis_set = list(combinations(item, r=hypothesis_size))
+                print(f'hypothesis set[{hypothesis_size}]:', hypothesis_set)
+                
+                for hypothesis in hypothesis_set:
+                    try:
+                        hypothesis_support_count = frequency_tables[hypothesis_size - 1][hypothesis]
+                        confidence = item_support_count / hypothesis_support_count
+                    except KeyError:
+                        print('ERR: Key failure')
+                    finally:
+                        print('hypothesis:', hypothesis, "sub:", hypothesis_support_count, ":conf:", confidence)
+                        
+                        if confidence > self.__conf:
+                            inference = [ element for element in item if element not in hypothesis ]
+                            assoc_rules[hypothesis] = inference
+                            print(f'{hypothesis} => {inference}')
+            # ------------------------------------------------------------------------------
+
+        return assoc_rules
+
+    def __gen_apriori_candidates(self, supported_fields:list) -> list:
+        candidates = list()
+
+        support_size = len(supported_fields)
+
+        if support_size == 0:
+            return candidates
+
+        if isinstance(supported_fields[0], str):
+            supported_fields = [ (field,) for field in supported_fields ]
+
+        for left_index in range(support_size - 1):
+            left_field = supported_fields[left_index]
+            right_start = left_index + 1
+
+            # print('left:', left_field)
+            for right_index in range(right_start, support_size):
+                right_field = supported_fields[right_index]
+                
+                # print('right:', right_field)
+                # difference_left = [ element for element in left_field if element not in right_field ]
+                # difference_right = [ element for element in right_field if element not in left_field ]
+                difference = [ element for element in right_field if element not in left_field ]
+                # print('difference', difference)
+
+                if len(difference) < 2:
+                    candidates.append(( *left_field, *difference ))
+
+        # print('candidates:', candidates)
+        return candidates
+
     def __sub_priori(self, transaction_table:pd.DataFrame, support_counts:dict, depth:int=1) -> dict:
         depth += 1
 
+        self.__state_log.append(support_counts)
         supported_fields = list(filter(lambda x: support_counts[x] > self.__reqsupcount, support_counts)) # Trim support_count with support threshold
-        self.__state_log.append({ field: support_counts[field] for field in supported_fields })
-        # TODO: Combining supported fields follows a more subtle logic
-        itemset_checklist = list(combinations(supported_fields, depth))
+        itemset_checklist = self.__gen_apriori_candidates(supported_fields=supported_fields)
         print(itemset_checklist)
 
         next_support_counts = dict()
@@ -56,7 +140,8 @@ class AssociationRuleMiner():
                 if spotless:
                     good_matches_count += 1
 
-            next_support_counts[itemset] = good_matches_count
+            if good_matches_count > self.__reqsupcount:
+                next_support_counts[itemset] = good_matches_count
 
         print(next_support_counts)
 
@@ -77,26 +162,30 @@ class AssociationRuleMiner():
         support_table = transaction_table.sum(axis=0).to_dict()
         
         print(support_table)
-        
+    
         frequent_itemset = self.__sub_priori(transaction_table=transaction_table, support_counts=support_table)
-        
+
         print('Frequent Itemset:', frequent_itemset)
         print('State Log:', self.__state_log)
 
-        return frequent_itemset
+        associations = self.__mine_from_freq_itemset(frequent_itemset=frequent_itemset, frequency_tables=self.__state_log)
 
-    def fp_growth(self, transaction_table:np.DataFrame) -> dict:
+        print('associations:', associations)
+        
+        return associations
+
+    def fp_growth(self, transaction_table:pd.DataFrame) -> dict:
         """
         words
         """
 
 ass_miner = AssociationRuleMiner(support_threshold=0.2, confidence_threshold=0.5)
 test_data = pd.DataFrame(data = [
-            [  True,    True,    True,    False ],
-            [  False,    False,    True,    False ],
-            [  True,    False,    True,    True ],
-            [  True,    False,    False,    False ],
-            [  True,    False,    False,    True ]
-], columns=[ 'I1', 'I2', 'I3', 'I4' ])
+            [  True,    True,     True,    False ],
+            [  False,   False,    True,    False ],
+            [  True,    False,    True,    True  ],
+            [  True,    False,    False,   False ],
+            [  True,    False,    False,   True  ]
+], columns= [  'I1',    'I2',     'I3',    'I4'  ])
 
 ass_miner.apriori(transaction_table=test_data)
