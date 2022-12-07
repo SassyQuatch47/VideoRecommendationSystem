@@ -38,32 +38,40 @@ class AssociationRuleMiner():
             frequency_tables = [[]]
             # TODO: generate frequencies from transaction_table
         
+        # print(frequent_itemset)
         for item in frequent_itemset:
         
             item_support_count = frequent_itemset[item]
-            print('item:', item, ":sup:", item_support_count)
+            # print('item:', item, ":sup:", item_support_count)
 
             # hypothesis_size = 1
             # ------------------------------------------------------------------------------
             hypothesis_set = list(combinations(item, r=1))
-            print(f'hypothesis set[{1}]:', hypothesis_set)
+            # print(f'hypothesis set[{1}]:', hypothesis_set)
                 
             for hypothesis in hypothesis_set:
-                hypothesis_support_count = frequency_tables[0][hypothesis[0]]
-                confidence = item_support_count / hypothesis_support_count
-                print('hypothesis:', hypothesis, ":sup:", hypothesis_support_count, ":conf:", confidence)
+                try:
+                    hypothesis_support_count = frequency_tables[0][hypothesis[0]]
+                except KeyError:
+                    hypothesis_support_count = 0
+                # print(f'{hypothesis}:', hypothesis_support_count)
+                try:
+                    confidence = item_support_count / hypothesis_support_count
+                except ZeroDivisionError:
+                    confidence = 0
+                # print('hypothesis:', hypothesis, ":sup:", hypothesis_support_count, ":conf:", confidence)
                 
                 if confidence > self.__conf:
                     inference = [ element for element in item if element not in hypothesis ]
                     assoc_rules[hypothesis] = inference
-                    print(f'{hypothesis} => {inference}')
+                    # print(f'{hypothesis} => {inference}')
             # ------------------------------------------------------------------------------
 
             # hypothesis_size > 1
             # ------------------------------------------------------------------------------
             for hypothesis_size in range(2, len(item)):
                 hypothesis_set = list(combinations(item, r=hypothesis_size))
-                print(f'hypothesis set[{hypothesis_size}]:', hypothesis_set)
+                # print(f'hypothesis set[{hypothesis_size}]:', hypothesis_set)
                 
                 for hypothesis in hypothesis_set:
                     try:
@@ -72,12 +80,12 @@ class AssociationRuleMiner():
                     except KeyError:
                         print('ERR: Key failure')
                     finally:
-                        print('hypothesis:', hypothesis, "sub:", hypothesis_support_count, ":conf:", confidence)
+                        # print('hypothesis:', hypothesis, "sub:", hypothesis_support_count, ":conf:", confidence)
                         
                         if confidence > self.__conf:
                             inference = [ element for element in item if element not in hypothesis ]
                             assoc_rules[hypothesis] = inference
-                            print(f'{hypothesis} => {inference}')
+                            # print(f'{hypothesis} => {inference}')
             # ------------------------------------------------------------------------------
 
         return assoc_rules
@@ -119,12 +127,12 @@ class AssociationRuleMiner():
         self.__state_log.append(support_counts)
         supported_fields = list(filter(lambda x: support_counts[x] > self.__reqsupcount, support_counts)) # Trim support_count with support threshold
         itemset_checklist = self.__gen_apriori_candidates(supported_fields=supported_fields)
-        print(itemset_checklist)
+        # print(itemset_checklist)
 
         next_support_counts = dict()
 
         for itemset in itemset_checklist:
-            print('itemset:', itemset)
+            # print('itemset:', itemset)
             tunnelvision = transaction_table[list(itemset)]
 
             good_matches_count = 0
@@ -143,7 +151,7 @@ class AssociationRuleMiner():
             if good_matches_count > self.__reqsupcount:
                 next_support_counts[itemset] = good_matches_count
 
-        print(next_support_counts)
+        # print(next_support_counts)
 
         if len(next_support_counts) > 0:
             return self.__sub_priori(transaction_table=transaction_table, support_counts=next_support_counts, depth=depth)
@@ -154,23 +162,34 @@ class AssociationRuleMiner():
         """
         words
         """
-        # print(f"support: {self.__sup * 100}%")
-        # print(f"confidence: {self.__conf * 100}%")
+        print(f"with support: {self.__sup * 100}%")
+        print(f"with confidence: {self.__conf * 100}%")
         self.__condense_support_count(transaction_table.shape[0])
         self.__reset_metadata()
 
         support_table = transaction_table.sum(axis=0).to_dict()
         
-        print(support_table)
+        # print(support_table)
     
         frequent_itemset = self.__sub_priori(transaction_table=transaction_table, support_counts=support_table)
 
-        print('Frequent Itemset:', frequent_itemset)
-        print('State Log:', self.__state_log)
+        # print('Frequent Itemset:', frequent_itemset)
+        if len(frequent_itemset) < 1:
+            print('low frequnecy (support too high)')
+            return {}
+
+        if not isinstance(list(frequent_itemset.keys())[0], list|tuple|dict):
+            print('single element frequencies found. Discarding results (support too high)')
+            return {}
+            # frequent_itemset = { (item,):frequent_itemset[item] for item in frequent_itemset }
+        # print('State Log:', self.__state_log)
 
         associations = self.__mine_from_freq_itemset(frequent_itemset=frequent_itemset, frequency_tables=self.__state_log)
+        
+        if len(associations) < 1:
+            print('no associations found (confidence too high)')
 
-        print('associations:', associations)
+        # print('associations:', associations)
         
         return associations
 
